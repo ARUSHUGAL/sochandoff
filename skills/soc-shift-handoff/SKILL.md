@@ -5,7 +5,7 @@ license: MIT
 compatibility: Needs Python 3.11+ and the sochandoff CLI (pip install git+https://github.com/ARUSHUGAL/sochandoff.git). Works in any agent that runs shell commands.
 metadata:
   author: Arush Ugal
-  version: "0.2.0"
+  version: "0.3.0"
   homepage: https://github.com/ARUSHUGAL/sochandoff
 ---
 
@@ -25,6 +25,11 @@ result, and write a clear briefing.
 4. **Do not invent cases, IOCs, or intel.** Everything in the briefing comes
    from sochandoff's JSON output.
 5. **Do not close, edit, or reassign cases in the SIEM.** This skill is read-only.
+6. **Always add `--redact` when you read real case data.** You are an AI model;
+   the user's real IPs, hosts and names should not reach your provider. Only skip
+   it for the bundled sample, or if the user says their SOC approved it.
+7. **Never read `~/.sochandoff/redact-map.json` and never print `--reveal`
+   output.** Revealing is the user's job, on their machine (see Step 4).
 
 ## Step 1: Check the setup
 
@@ -47,7 +52,13 @@ pip install git+https://github.com/ARUSHUGAL/sochandoff.git
 | Wazuh indexer | `sochandoff --from wazuh -f json` (add `--wazuh-hours N`) |
 | Splunk, Sentinel, Jira, ServiceNow | Export to JSON/CSV first. See `references/input-format.md`. |
 
-Add `--live-intel` only if `SOCHANDOFF_ABUSEIPDB_KEY` is set.
+For real data, every command above gets `--redact` (rule 6), e.g.
+`sochandoff --from thehive -f json --redact`.
+
+If the output says "no threat feeds yet" or "old feeds", run
+`sochandoff --update-feeds` first (free, about 40,000 known-bad IPs and
+domains, checked offline). Add `--live-intel` only if
+`SOCHANDOFF_ABUSEIPDB_KEY` is set and the user is fine sending IPs to AbuseIPDB.
 
 If a connector fails with "set the ... environment variable", tell the user the
 exact variable name to set in their own shell. Do not ask them to paste the value
@@ -88,10 +99,21 @@ Lead with what needs a human now. Use this order:
 
 Keep it short. The reader just walked in with coffee.
 
-If the user wants a file to paste into Slack or a ticket:
+With `--redact` you see tokens like `IP-3`, `USER-1`, `HOST-2`. Keep them
+exactly as written in your briefing. Save the briefing to a file, then turn the
+tokens back into real values into a NEW file without printing it:
 
 ```bash
-sochandoff --from thehive -f md -o handoff.md
+sochandoff --reveal briefing.md -o briefing.final.md
+```
+
+Tell the user to open `briefing.final.md`. Do not read it yourself.
+
+If the user wants the plain handoff file for Slack or a ticket:
+
+```bash
+sochandoff --from thehive -f md --redact -o handoff.md
+sochandoff --reveal handoff.md -o handoff.final.md
 ```
 
 ## Step 5: Customize (only when asked)
@@ -108,8 +130,14 @@ from this agent's own scheduler.
 
 - The bundled sample has fixed dates, so every sample case looks stale. That is
   expected. Real data with fresh times flags only real problems.
-- Memory is per machine (`~/.sochandoff/memory.json`). Two analysts on two
-  laptops do not share it unless they point `[memory] path` at a shared folder.
+- Memory is per machine by default. For a team, run on one shared host with
+  `[memory] backend = "sqlite"`. Never put memory on an SMB/NFS share.
+- Every run writes a line to `~/.sochandoff/audit.jsonl`. Do not pass
+  `--no-audit` unless the user asks.
+- Redaction catches IPs, domains, hashes, emails, IOCs, assignees and the
+  team's `[redact] patterns`. Plain words like "the HR laptop" stay. If you
+  spot a real-looking hostname or name in redacted output, tell the user to
+  add a pattern.
 - Re-running within 6 hours counts as the same shift. That is on purpose.
 - The bundled intel feed is tiny (demo only). "no intel on record" means
   unknown, not clean.
