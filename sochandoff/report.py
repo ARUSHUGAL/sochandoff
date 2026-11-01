@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from .enrich import IntelFeed
+from .loaders import load_cases  # noqa: F401  (re-exported for callers)
 from .memory import ShiftMemory
 from .model import Case
 
@@ -27,14 +25,6 @@ SEVERITY_COLOR = {
     "low": GREEN,
     "info": DIM,
 }
-
-
-def load_cases(path: str | Path) -> list[Case]:
-    """Load cases from a JSON file. The file is a list of case objects."""
-    raw = json.loads(Path(path).read_text())
-    if not isinstance(raw, list):
-        raise ValueError("input file must contain a JSON list of cases")
-    return [Case(**item) for item in raw]
 
 
 def _c(text: str, color: str, use_color: bool) -> str:
@@ -153,9 +143,15 @@ def build_report(
     # Record this run's IOCs into memory AFTER building the report, so this
     # run's recall reflects only PRIOR shifts, not itself.
     if memory is not None:
-        for case in ranked:
-            for ioc in case.iocs:
-                memory.record(ioc, case.id)
-        memory.save()
+        record_run(ranked, memory)
 
     return "\n".join(lines)
+
+
+def record_run(cases: list[Case], memory: ShiftMemory) -> None:
+    """Save every open case's IOCs into cross-shift memory."""
+    for case in cases:
+        if case.is_open:
+            for ioc in case.iocs:
+                memory.record(ioc, case.id)
+    memory.save()

@@ -36,10 +36,15 @@ class Recall:
 
 
 class ShiftMemory:
-    def __init__(self, store_path: str | Path | None = None):
+    def __init__(
+        self,
+        store_path: str | Path | None = None,
+        shift_gap_hours: float = 6.0,
+    ):
         if store_path is None:
             store_path = Path.home() / ".sochandoff" / "memory.json"
         self.path = Path(store_path)
+        self.shift_gap_hours = shift_gap_hours
         self._data: dict[str, dict] = {}
         if self.path.exists():
             try:
@@ -60,13 +65,20 @@ class ShiftMemory:
             case_ids=list(rec.get("case_ids", [])),
         )
 
-    def record(self, ioc: str, case_id: str) -> None:
-        """Log that we saw this IOC on this run, for future recall."""
+    def record(self, ioc: str, case_id: str, now: str | None = None) -> None:
+        """Log that we saw this IOC on this run, for future recall.
+
+        Runs inside the same shift window count once: re-running the tool
+        three times at 6 AM must not claim "seen in 3 prior shifts".
+        """
         key = ioc.lower()
-        now = _now_iso()
+        now = now or _now_iso()
         rec = self._data.get(key)
         if rec:
-            rec["seen_count"] = int(rec.get("seen_count", 0)) + 1
+            last = datetime.fromisoformat(rec.get("last_seen", now))
+            gap_h = (datetime.fromisoformat(now) - last).total_seconds() / 3600
+            if gap_h >= self.shift_gap_hours:
+                rec["seen_count"] = int(rec.get("seen_count", 0)) + 1
             rec["last_seen"] = now
             if case_id not in rec.get("case_ids", []):
                 rec.setdefault("case_ids", []).append(case_id)

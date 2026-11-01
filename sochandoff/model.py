@@ -34,6 +34,18 @@ VALID_SEVERITIES = set(SEVERITY_WEIGHT)
 VALID_STATUSES = set(STATUS_WEIGHT)
 
 
+@dataclass
+class Thresholds:
+    """Tunable limits for the dropped-case guard. Overridden by config."""
+
+    stale_hours: float = 8.0      # no update for longer than this = stale
+    max_shifts_open: int = 3      # open across this many shifts = drifting
+
+
+# Process-wide thresholds. The CLI replaces these from the config file.
+THRESHOLDS = Thresholds()
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -99,7 +111,7 @@ class Case:
         if self.watch:
             score += 25
         # Stale, un-updated open cases are the dangerous ones.
-        if self.is_open and self.hours_since_update > 8:
+        if self.is_open and self.hours_since_update > THRESHOLDS.stale_hours:
             score += 15
         return score
 
@@ -112,9 +124,9 @@ class Case:
         if not self.is_open:
             return False, ""
         reasons = []
-        if self.shifts_open >= 3:
+        if self.shifts_open >= THRESHOLDS.max_shifts_open:
             reasons.append(f"open across {self.shifts_open} shifts")
-        if self.hours_since_update > 8:
+        if self.hours_since_update > THRESHOLDS.stale_hours:
             reasons.append(f"no update in {self.hours_since_update:.0f}h")
         if self.assignee == "unassigned":
             reasons.append("no owner assigned")

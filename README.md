@@ -1,5 +1,9 @@
 # sochandoff
 
+[![tests](https://github.com/ARUSHUGAL/sochandoff/actions/workflows/tests.yml/badge.svg)](https://github.com/ARUSHUGAL/sochandoff/actions/workflows/tests.yml)
+![python](https://img.shields.io/badge/python-3.11%2B-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+
 **The SOC shift-handoff that doesn't suck.** Rank your open cases by risk, call out the ones about to die in a ditch, and never again hand the next shift a Slack message that just says *"few things going on, gl."*
 
 ```bash
@@ -57,15 +61,52 @@ pip install git+https://github.com/ARUSHUGAL/sochandoff.git
 ## Usage
 
 ```bash
-sochandoff                      # bundled sample data — try it right now
-sochandoff open_cases.json      # your own export
-sochandoff open_cases.json --no-color   # for logs / piping / goths
-sochandoff --no-intel --no-memory       # back to boring mode
+sochandoff                          # bundled sample data — try it right now
+sochandoff open_cases.json          # your own JSON export
+sochandoff open_cases.csv           # ...or CSV, we don't judge
+sochandoff --from thehive           # pull live from TheHive
+sochandoff --from wazuh             # pull live from Wazuh (last 24h)
+sochandoff -f md -o handoff.md      # Markdown handoff with checkboxes, paste anywhere
+sochandoff -f json | jq .           # JSON for your other tools
+sochandoff --live-intel             # real AbuseIPDB lookups
+sochandoff --no-color               # for logs / piping / goths
+sochandoff --no-intel --no-memory   # back to boring mode
 ```
+
+## Plug it into your SIEM
+
+<img src="https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif" width="220" align="right" alt="hacker typing" />
+
+Credentials come from **environment variables only**. Never flags, never the config file. Your API key does not belong in `~/.zsh_history`.
+
+| Source | Command | Env vars |
+|--------|---------|----------|
+| TheHive 5 | `sochandoff --from thehive` | `SOCHANDOFF_THEHIVE_URL`, `SOCHANDOFF_THEHIVE_KEY` |
+| Wazuh | `sochandoff --from wazuh` | `SOCHANDOFF_WAZUH_URL` (indexer, :9200), `SOCHANDOFF_WAZUH_USER`, `SOCHANDOFF_WAZUH_PASS` |
+| AbuseIPDB (intel) | `--live-intel` | `SOCHANDOFF_ABUSEIPDB_KEY` |
+| Anything else | export to JSON/CSV | — |
+
+- **TheHive**: pulls every case not closed, plus its observables (IPs, domains, hashes) as IOCs. Severity 1–4 and status map over automatically.
+- **Wazuh**: Wazuh has alerts, not cases, so sochandoff **groups them** — one case per rule per host. 300 SSH brute-force alerts on `web-01` become one line that says "300 alerts grouped." Tune with `--wazuh-hours 12`.
+- **AbuseIPDB**: live IP reputation. If the network is down or the key is bad, it quietly falls back to the local feed. The handoff never crashes because an API sneezed.
+- Lab server with a self-signed cert? `--insecure`. Please don't use that in prod. We will know. (We won't. But still.)
+
+Splunk and Sentinel connectors are next. Until then, export to JSON and pipe it in.
+
+## Config
+
+Copy [`config.example.toml`](config.example.toml) to `~/.sochandoff/config.toml`. Tune how stale is "stale", how many shifts is "drifting", where memory lives, and whether intel goes live. Every key is optional.
 
 ## Input format
 
-A JSON list of cases. Export open cases from your SIEM/ticketing tool (Splunk, Sentinel, TheHive, Jira — they all do JSON) and map the fields:
+A JSON (or CSV) list of cases. Bad input gets a real error that names the row and the problem, not a Python stack trace:
+
+```
+error: some cases are invalid:
+  - case #1 (A): missing 'title'; bad severity 'spicy' (use critical, high, info, low, medium)
+```
+
+In CSV, lists like `iocs` and `tags` are split with `;`. Booleans accept `true/yes/1`. The JSON fields:
 
 ```json
 [
@@ -98,8 +139,8 @@ A JSON list of cases. Export open cases from your SIEM/ticketing tool (Splunk, S
 
 <img src="https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif" width="260" align="right" alt="galaxy brain meme" />
 
-- 🌐 **intel** is pluggable. Out of the box it uses a bundled local feed (so demos work on a plane). Point it at a real source — VirusTotal, AbuseIPDB, URLhaus — and it lights up for real.
-- 🧠 **memory** is a tiny local JSON store at `~/.sochandoff/memory.json`. Every IOC it reports gets logged, so future shifts recognize repeats. No database. No server. No cloud bill.
+- 🌐 **intel** checks the bundled feed first (so demos work on a plane), or your own feed from config. Turn on `--live-intel` and IPs get real AbuseIPDB scores. Each IOC is looked up once per run.
+- 🧠 **memory** is a tiny local JSON store at `~/.sochandoff/memory.json`. Every IOC it reports gets logged, so future shifts recognize repeats. Re-running it five times at 6 AM counts as **one** shift, not five, because we're not here to lie to you. No database. No server. No cloud bill.
 
 ## A note on the sample data
 
@@ -110,7 +151,7 @@ The bundled sample uses fixed timestamps, so as the days roll by, every sample c
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e . pytest
-pytest          # 22 tests, all green, we don't ship vibes
+pytest          # 42 tests, all green, we don't ship vibes
 ```
 
 ## License
