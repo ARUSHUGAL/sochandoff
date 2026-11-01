@@ -20,6 +20,7 @@ import getpass
 import json
 import os
 import sqlite3
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -139,14 +140,22 @@ class SqliteMemory:
     def __init__(self, store_path: str | Path | None = None, shift_gap_hours: float = 6.0):
         self.path = Path(store_path) if store_path else DEFAULT_DIR / "memory.db"
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        new = not self.path.exists()
-        self.db = sqlite3.connect(self.path, timeout=30)
-        self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.execute("PRAGMA busy_timeout=30000")
-        self.db.executescript(self.SCHEMA)
-        if new:
-            # Owner + group so the SOC team group can share it; never world.
-            os.chmod(self.path, 0o660)  # nosec B103
+        # Switching to WAL and creating tables can fail with "database is locked"
+        # when several analysts start at once, even with a busy timeout. A plain
+        # file lock around setup makes it one-at-a-time.
+        with open(self.path.with_suffix(self.path.suffix + ".lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                new = not self.path.exists()
+                self.db = sqlite3.connect(self.path, timeout=30)
+                self.db.execute("PRAGMA busy_timeout=30000")
+                self.db.execute("PRAGMA journal_mode=WAL")
+                self.db.executescript(self.SCHEMA)
+                if new:
+                    # Owner + group so the SOC team group can share it; never world.
+                    os.chmod(self.path, 0o660)  # nosec B103
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
         self.shift_gap_hours = shift_gap_hours
         # Snapshot for recall, so this run only sees PRIOR shifts.
         self._snapshot = {row[0]: row for row in self.db.execute(
@@ -168,7 +177,18 @@ class SqliteMemory:
     def save(self) -> None:
         if not self._pending:
             return
-        with self.db:  # one transaction
+        for attempt in range(10):
+            try:
+                self._write()
+                break
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) or attempt == 9:
+                    raise
+                time.sleep(0.2 * (attempt + 1))
+        self._pending = []
+
+    def _write(self) -> None:
+        with self.db:  # one transaction; rolls back on error
             self.db.execute("BEGIN IMMEDIATE")
             for key, case_id, now, who in self._pending:
                 row = self.db.execute("SELECT seen_count, last_seen FROM iocs WHERE ioc=?",
@@ -181,7 +201,6 @@ class SqliteMemory:
                         "UPDATE iocs SET seen_count=seen_count+?, last_seen=max(last_seen, ?), "
                         "last_seen_by=? WHERE ioc=?", (bump, now, who, key))
                 self.db.execute("INSERT OR IGNORE INTO ioc_cases VALUES (?,?)", (key, case_id))
-        self._pending = []
 
 
 def open_memory(backend: str = "json", path: str | Path | None = None, shift_gap_hours: float = 6.0):
