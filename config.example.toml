@@ -1,0 +1,14 @@
+# Copy to ~/.sochandoff/config.toml and tweak. Every key is optional.
+# Secrets (API keys, passwords) NEVER go here. Use environment variables.
+
+[thresholds]
+stale_hours = 8          # no update for longer than this = stale
+max_shifts_open = 3      # open across this many shifts = drifting
+
+[memory]
+path = "~/.sochandoff/memory.json"
+shift_gap_hours = 6      # re-runs closer together than this count as the same shift
+
+[intel]
+live = false             # true = ask AbuseIPDB live (needs SOCHANDOFF_ABUSEIPDB_KEY)
+# feed = "~/my_team_intel.json"   # your own IOC feed, same shape as the bundled one

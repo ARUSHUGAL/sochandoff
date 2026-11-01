@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sochandoff"
-version = "0.1.0"
+version = "0.2.0"
 description = "A SOC shift-handoff tool for the terminal — rank open cases and never drop one between shifts."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Arush Ugal" }]
 keywords = ["soc", "security", "incident-response", "handoff", "cli"]

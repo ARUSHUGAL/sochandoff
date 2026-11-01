@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e . pytest
+      - run: pytest -q
+      - name: smoke test the CLI
+        run: |
+          sochandoff --no-color > /dev/null
+          sochandoff -f md > /dev/null
+          sochandoff -f json | python -c "import json,sys; d=json.load(sys.stdin); assert d['open_cases'] == 5"

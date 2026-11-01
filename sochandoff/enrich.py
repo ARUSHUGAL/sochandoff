@@ -57,38 +57,106 @@ class Verdict:
 
 
 class IntelFeed:
-    """Looks up IOCs. Local feed first; live source optional and best-effort."""
+    """Looks up IOCs.
 
-    def __init__(self, feed_path: str | Path | None = None):
+    Resolution order for each IOC:
+      1. the bundled/local JSON feed (always available, offline);
+      2. an optional LIVE source (AbuseIPDB for IPs), used only when a key is
+         provided and ``live=True`` — best-effort, never blocks the report.
+
+    Live results are cached in-memory for the run so repeat IOCs cost one call.
+    """
+
+    # AbuseIPDB free API: scores an IP's abuse confidence 0-100.
+    _ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
+
+    def __init__(
+        self,
+        feed_path: str | Path | None = None,
+        live: bool = False,
+        abuseipdb_key: str | None = None,
+        timeout: float = 4.0,
+    ):
         if feed_path is None:
             feed_path = Path(__file__).parent / "data" / "intel_feed.json"
         self._feed: dict[str, dict] = {}
         p = Path(feed_path)
         if p.exists():
             self._feed = json.loads(p.read_text())
+        self.live = live
+        self.abuseipdb_key = abuseipdb_key
+        self.timeout = timeout
+        self._cache: dict[str, Verdict] = {}
 
-    def lookup(self, ioc: str) -> Verdict:
-        ioc = ioc.strip()
-        kind = classify_ioc(ioc)
+    def _from_local(self, ioc: str, kind: str) -> Verdict | None:
         hit = self._feed.get(ioc.lower())
-        if hit:
-            return Verdict(
-                ioc=ioc,
-                kind=kind,
-                malicious=bool(hit.get("malicious", False)),
-                score=int(hit.get("score", 0)),
-                summary=hit.get("summary", "listed in local intel feed"),
-                source=hit.get("source", "local-feed"),
-            )
-        # Not in the feed — unknown, treated as clean until proven otherwise.
+        if not hit:
+            return None
         return Verdict(
             ioc=ioc,
             kind=kind,
-            malicious=False,
-            score=0,
-            summary="no intel on record",
-            source="local-feed",
+            malicious=bool(hit.get("malicious", False)),
+            score=int(hit.get("score", 0)),
+            summary=hit.get("summary", "listed in local intel feed"),
+            source=hit.get("source", "local-feed"),
         )
+
+    def _from_abuseipdb(self, ioc: str) -> Verdict | None:
+        """Live IP lookup. Returns None on any error — never raises."""
+        if not (self.live and self.abuseipdb_key):
+            return None
+        try:
+            import json as _json
+            import urllib.parse
+            import urllib.request
+
+            qs = urllib.parse.urlencode({"ipAddress": ioc, "maxAgeInDays": 90})
+            req = urllib.request.Request(
+                f"{self._ABUSEIPDB_URL}?{qs}",
+                headers={"Key": self.abuseipdb_key, "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                data = _json.loads(resp.read()).get("data", {})
+            score = int(data.get("abuseConfidenceScore", 0))
+            reports = int(data.get("totalReports", 0))
+            country = data.get("countryCode") or "?"
+            return Verdict(
+                ioc=ioc,
+                kind="ip",
+                malicious=score >= 50,
+                score=score,
+                summary=(
+                    f"AbuseIPDB confidence {score}%, {reports} reports, {country}"
+                ),
+                source="abuseipdb-live",
+            )
+        except Exception:
+            # Network down, bad key, rate limit — fall through to local/clean.
+            return None
+
+    def lookup(self, ioc: str) -> Verdict:
+        ioc = ioc.strip()
+        if ioc in self._cache:
+            return self._cache[ioc]
+        kind = classify_ioc(ioc)
+
+        # Live source wins when it has an answer (freshest), IPs only for now.
+        verdict = None
+        if kind == "ip":
+            verdict = self._from_abuseipdb(ioc)
+        if verdict is None:
+            verdict = self._from_local(ioc, kind)
+        if verdict is None:
+            verdict = Verdict(
+                ioc=ioc,
+                kind=kind,
+                malicious=False,
+                score=0,
+                summary="no intel on record",
+                source="local-feed",
+            )
+        self._cache[ioc] = verdict
+        return verdict
 
     def enrich_case(self, iocs: list[str]) -> list[Verdict]:
         return [self.lookup(i) for i in iocs]
