@@ -20,6 +20,7 @@ import json
 import os
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Callable
@@ -38,18 +39,43 @@ def _env(name: str) -> str:
     return value
 
 
+def _tls_context(verify: bool) -> ssl.SSLContext:
+    """Company CA bundle from SOCHANDOFF_CA_FILE if set. --insecure skips checks."""
+    if not verify:
+        return ssl._create_unverified_context()  # nosec B323
+    ca = os.environ.get("SOCHANDOFF_CA_FILE")
+    return ssl.create_default_context(cafile=ca) if ca else ssl.create_default_context()
+
+
+def _safe_url(url: str) -> str:
+    """URL for error messages, without query strings or user:pass."""
+    p = urllib.parse.urlsplit(url)
+    return f"{p.scheme}://{p.hostname}{':' + str(p.port) if p.port else ''}{p.path}"
+
+
 def http_fetch(url: str, headers: dict, body: bytes | None, verify: bool = True) -> object:
-    """POST/GET JSON. Raises ConnectorError with a readable message on failure."""
+    """POST/GET JSON. Raises ConnectorError with a readable message on failure.
+
+    Honors HTTPS_PROXY / NO_PROXY like any urllib client.
+    """
+    if urllib.parse.urlsplit(url).scheme not in ("https", "http"):
+        raise ConnectorError(f"refusing URL scheme in {_safe_url(url)} (use https)")
     req = urllib.request.Request(url, data=body, headers=headers,
                                  method="POST" if body is not None else "GET")
-    ctx = None if verify else ssl._create_unverified_context()  # noqa: S323 (opt-in only)
     try:
-        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+        with urllib.request.urlopen(req, timeout=15, context=_tls_context(verify)) as resp:  # nosec B310
             return json.loads(resp.read() or b"null")
     except urllib.error.HTTPError as exc:
-        raise ConnectorError(f"{url} -> HTTP {exc.code} {exc.reason}") from exc
+        hint = " (check the API key / user rights)" if exc.code in (401, 403) else ""
+        raise ConnectorError(f"{_safe_url(url)} -> HTTP {exc.code} {exc.reason}{hint}") from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise ConnectorError(f"could not reach {url}: {exc}") from exc
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, ssl.SSLError) or isinstance(exc, ssl.SSLError):
+            raise ConnectorError(f"TLS error for {_safe_url(url)}: {reason}. "
+                                 "Company CA? set SOCHANDOFF_CA_FILE") from exc
+        raise ConnectorError(f"could not reach {_safe_url(url)}: {reason}") from exc
+    except ValueError as exc:
+        raise ConnectorError(f"{_safe_url(url)} did not return JSON") from exc
 
 
 def _ms_to_iso(ms: object) -> str:

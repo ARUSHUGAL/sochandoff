@@ -121,6 +121,34 @@ Credentials come from **environment variables only**. Never flags, never the con
 
 Splunk and Sentinel connectors are next. Until then, export to JSON and pipe it in.
 
+## For real SOC teams
+
+<img src="https://media.giphy.com/media/111ebonMs90YLu/giphy.gif" width="180" align="right" alt="mic drop" />
+
+The boring-but-important stuff your security lead will ask about:
+
+| Need | How |
+|------|-----|
+| Real threat intel, no API key | `sochandoff --update-feeds` pulls ~40k bad IPs/domains (Feodo, Spamhaus DROP, OpenPhish, ET, CINS, blocklist.de). Checked offline. |
+| One memory for the whole team | `[memory] backend = "sqlite"` on a shared host. Two analysts saving at once never wipe each other. |
+| Who ran what, when | `~/.sochandoff/audit.jsonl`, one line per run. Case IDs only, never titles or IOCs. `syslog = true` ships it to your SIEM. |
+| AI agents without leaking data | `--redact` swaps IPs, domains, hashes, emails, names and your hostname patterns for `IP-3`, `USER-1`... `--reveal` puts them back, locally. |
+| Internal CA, proxy | `SOCHANDOFF_CA_FILE`, `HTTPS_PROXY` |
+| Code you can trust | CI runs tests, `bandit`, `pip-audit` and a secrets check on every push. See [SECURITY.md](SECURITY.md). |
+
+The bundled demo intel list only ever applies to the bundled sample. It will never call one of *your* IPs evil because of a made-up demo entry.
+
+## Try it on a real TheHive (local lab)
+
+```bash
+brew install colima docker docker-compose     # once
+sh lab/run-lab.sh                             # starts TheHive 5 + seeds 8 cases (~3 GB RAM)
+. ~/.sochandoff/lab.env && sochandoff --from thehive
+sh lab/run-lab.sh stop                        # when done
+```
+
+Everything binds to `127.0.0.1`. The seed script refuses to run against anything that isn't localhost.
+
 ## Config
 
 Copy [`config.example.toml`](config.example.toml) to `~/.sochandoff/config.toml`. Tune how stale is "stale", how many shifts is "drifting", where memory lives, and whether intel goes live. Every key is optional.
@@ -179,7 +207,7 @@ The bundled sample uses fixed timestamps, so as the days roll by, every sample c
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e . pytest
-pytest          # 47 tests, all green, we don't ship vibes
+pytest          # 63 tests, all green, we don't ship vibes
 ```
 
 ## License

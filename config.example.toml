@@ -6,9 +6,28 @@ stale_hours = 8          # no update for longer than this = stale
 max_shifts_open = 3      # open across this many shifts = drifting
 
 [memory]
-path = "~/.sochandoff/memory.json"
+backend = "json"         # "sqlite" for a team on one shared host
+path = "~/.sochandoff/memory.json"   # e.g. "/srv/soc/sochandoff.db" with sqlite
 shift_gap_hours = 6      # re-runs closer together than this count as the same shift
 
 [intel]
 live = false             # true = ask AbuseIPDB live (needs SOCHANDOFF_ABUSEIPDB_KEY)
-# feed = "~/my_team_intel.json"   # your own IOC feed, same shape as the bundled one
+# feed = "~/team_intel.json"        # your own IOC list
+# feeds_dir = "~/.sochandoff/feeds" # where --update-feeds saves public feeds
+
+[audit]
+enabled = true
+# path = "~/.sochandoff/audit.jsonl"
+syslog = false           # true = also send each run to local syslog for your SIEM
+
+[redact]
+always = false           # true = every run is redacted (recommended with AI agents)
+# Your own formats. Each match becomes HOST-n.
+patterns = [
+  # '\b(?:WS|LT|SRV)-\d{2,5}\b',
+  # '\b[a-z]\.[a-z]+\b',             # usernames like a.patel
+]
+# map = "~/.sochandoff/redact-map.json"
+
+[tls]
+# ca_file = "/etc/ssl/company-ca.pem"   # or set SOCHANDOFF_CA_FILE

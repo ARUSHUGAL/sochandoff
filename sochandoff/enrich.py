@@ -19,6 +19,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .feeds import FeedIndex
+
 _HASH_RE = re.compile(r"^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$")
 _DOMAIN_RE = re.compile(
     r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})+$"
@@ -70,19 +72,28 @@ class IntelFeed:
     # AbuseIPDB free API: scores an IP's abuse confidence 0-100.
     _ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
 
+    DEMO_FEED = Path(__file__).parent / "data" / "intel_feed.json"
+
     def __init__(
         self,
         feed_path: str | Path | None = None,
         live: bool = False,
         abuseipdb_key: str | None = None,
         timeout: float = 4.0,
+        feeds_dir: str | Path | None = None,
+        demo: bool = False,
     ):
-        if feed_path is None:
-            feed_path = Path(__file__).parent / "data" / "intel_feed.json"
+        """
+        feed_path: your team's own IOC file (config [intel] feed).
+        feeds_dir: downloaded public feeds (sochandoff --update-feeds).
+        demo:      also load the bundled demo list. Only for the sample data;
+                   its entries are made up and must never judge real IPs.
+        """
         self._feed: dict[str, dict] = {}
-        p = Path(feed_path)
-        if p.exists():
-            self._feed = json.loads(p.read_text())
+        for p in ([self.DEMO_FEED] if demo else []) + ([Path(feed_path)] if feed_path else []):
+            if p.exists():
+                self._feed.update({k.lower(): v for k, v in json.loads(p.read_text()).items()})
+        self.index = FeedIndex(feeds_dir)
         self.live = live
         self.abuseipdb_key = abuseipdb_key
         self.timeout = timeout
@@ -101,6 +112,16 @@ class IntelFeed:
             source=hit.get("source", "local-feed"),
         )
 
+    def _from_feeds(self, ioc: str, kind: str) -> Verdict | None:
+        hits = self.index.hits(ioc)
+        if not hits:
+            return None
+        top = hits[0]
+        more = len({h.feed for h in hits}) - 1
+        extra = f" (+{more} more feed{'s' if more > 1 else ''})" if more else ""
+        return Verdict(ioc=ioc, kind=kind, malicious=top.score >= 50, score=top.score,
+                       summary=top.summary + extra, source=top.feed)
+
     def _from_abuseipdb(self, ioc: str) -> Verdict | None:
         """Live IP lookup. Returns None on any error — never raises."""
         if not (self.live and self.abuseipdb_key):
@@ -115,7 +136,7 @@ class IntelFeed:
                 f"{self._ABUSEIPDB_URL}?{qs}",
                 headers={"Key": self.abuseipdb_key, "Accept": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 data = _json.loads(resp.read()).get("data", {})
             score = int(data.get("abuseConfidenceScore", 0))
             reports = int(data.get("totalReports", 0))
@@ -146,6 +167,8 @@ class IntelFeed:
             verdict = self._from_abuseipdb(ioc)
         if verdict is None:
             verdict = self._from_local(ioc, kind)
+        if verdict is None:
+            verdict = self._from_feeds(ioc, kind)
         if verdict is None:
             verdict = Verdict(
                 ioc=ioc,

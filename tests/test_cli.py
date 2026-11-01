@@ -73,7 +73,7 @@ def test_live_intel_falls_back_when_network_fails(monkeypatch):
         raise OSError("network down")
 
     monkeypatch.setattr(urllib.request, "urlopen", boom)
-    feed = IntelFeed(live=True, abuseipdb_key="k")
+    feed = IntelFeed(live=True, abuseipdb_key="k", demo=True)
     assert feed.lookup("194.26.135.12").source == "bundled-feed"
 
 
@@ -90,6 +90,6 @@ def test_live_intel_uses_abuseipdb(monkeypatch):
 
     body = b'{"data": {"abuseConfidenceScore": 97, "totalReports": 41, "countryCode": "RU"}}'
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: Resp(body))
-    v = IntelFeed(live=True, abuseipdb_key="k").lookup("203.0.113.9")
+    v = IntelFeed(live=True, abuseipdb_key="k", demo=True).lookup("203.0.113.9")
     assert v.source == "abuseipdb-live"
     assert v.is_bad and "97%" in v.summary

@@ -20,13 +20,13 @@ def test_classify_unknown():
 
 
 def test_known_bad_ip_flagged():
-    feed = IntelFeed()
+    feed = IntelFeed(demo=True)
     verdict = feed.lookup("194.26.135.12")
     assert verdict.is_bad is True
     assert verdict.score >= 50
 
 
 def test_unknown_ioc_is_clean():
-    feed = IntelFeed()
+    feed = IntelFeed(demo=True)
     verdict = feed.lookup("8.8.8.8")
     assert verdict.is_bad is False

@@ -3,6 +3,8 @@ name: tests
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "17 6 * * 1"   # weekly: catch new CVEs and dead feeds
 
 permissions:
   contents: read
@@ -26,3 +28,33 @@ jobs:
           sochandoff --no-color > /dev/null
           sochandoff -f md > /dev/null
           sochandoff -f json | python -c "import json,sys; d=json.load(sys.stdin); assert d['open_cases'] == 5"
+          sochandoff -f md --redact | grep -q 'IP-'
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e . bandit pip-audit
+      - name: bandit (code scan, medium+ fails)
+        run: bandit -r sochandoff -ll
+      - name: pip-audit (known CVEs in dependencies)
+        run: pip-audit --skip-editable
+      - name: no secrets committed
+        run: |
+          ! grep -rEn '(AKIA[0-9A-Z]{16}|ghp_[0-9A-Za-z]{36}|xox[baprs]-[0-9A-Za-z-]+|-----BEGIN [A-Z ]*PRIVATE KEY)' \
+            --exclude-dir=.git .
+
+  feeds:
+    # Live check that every free feed still answers. Warns, never blocks a PR.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - run: sochandoff --update-feeds
