@@ -73,6 +73,34 @@ sochandoff --no-color               # for logs / piping / goths
 sochandoff --no-intel --no-memory   # back to boring mode
 ```
 
+## Use it from your AI agent
+
+<img src="https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif" width="200" align="right" alt="galaxy brain" />
+
+sochandoff ships as an [Agent Skill](skills/soc-shift-handoff/SKILL.md). One install works in **Claude Code, Codex, Kiro and Freebuff**. Then you just type *"do my shift handoff"* and your agent pulls the cases, runs the scoring, and writes the briefing. It never invents cases, and it never touches your secrets.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ARUSHUGAL/sochandoff/main/install-skill.sh | sh -s -- --with-cli
+```
+
+| Agent | Where it lands |
+|-------|----------------|
+| Claude Code | `~/.claude/skills/soc-shift-handoff` |
+| Codex | `~/.agents/skills/soc-shift-handoff` |
+| Freebuff | `~/.agents/skills/soc-shift-handoff` |
+| Kiro | `~/.kiro/skills/soc-shift-handoff` |
+
+Only want some? `--agent claude --agent kiro`. Want it in one repo for your team? `--project`.
+
+Ask your agent things like:
+
+- *"Do my shift handoff from TheHive and flag anything about to drop."*
+- *"Our shifts are 12 hours. Tune sochandoff for that."*
+- *"Post the handoff to Slack at 5:45, 1:45 and 9:45."*
+- *"Add a Splunk connector."*
+
+The skill knows how to customize thresholds, add connectors, and set up cron or Slack. It asks before it schedules anything.
+
 ## Plug it into your SIEM
 
 <img src="https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif" width="220" align="right" alt="hacker typing" />
@@ -151,7 +179,7 @@ The bundled sample uses fixed timestamps, so as the days roll by, every sample c
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e . pytest
-pytest          # 42 tests, all green, we don't ship vibes
+pytest          # 47 tests, all green, we don't ship vibes
 ```
 
 ## License
