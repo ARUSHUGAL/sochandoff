@@ -1,69 +1,71 @@
 # sochandoff
 
-**A SOC shift-handoff tool for the terminal.** Rank your open cases by risk, and never let one fall through the crack between shifts.
+**The SOC shift-handoff that doesn't suck.** Rank your open cases by risk, call out the ones about to die in a ditch, and never again hand the next shift a Slack message that just says *"few things going on, gl."*
 
-```
+```bash
 sochandoff open_cases.json
 ```
 
+![demo](assets/demo.svg)
+
 ---
 
-## The problem
+## The problem (you already know it)
 
-Every 8 hours a SOC hands its open investigations to the next shift. Today that
-handoff is a Slack dump or a half-filled template. When it is sloppy, the
-incoming shift retraces work, or worse, an active case gets dropped. Industry
-surveys put a large share of alerts as never investigated — and the handoff gap
-is where many of them disappear.
+It's 6 AM. You've been staring at alerts for eight hours. Your brain is soup. The next analyst walks in, coffee in hand, and asks "anything I should know?" and you say:
 
-There are generic shift-handover apps (for hotels, factories) and SOC handoff
-*templates*, but no small, analyst-focused tool that ranks cases and actively
-guards against dropped ones. `sochandoff` is that tool.
+> "uhh yeah the phishing thing is still going, and check the HR laptop, and... something about a VPN? gotta run, bye"
+
+<img src="https://media.giphy.com/media/l0HlQXlQ3nHyLMvte/giphy.gif" width="320" alt="this is fine dog in a burning room" />
+
+*(the handoff process at most SOCs, colorized)*
+
+Then the phishing case sits there with no owner, nobody acknowledges it, and the attacker throws a party in your finance team's inbox. Industry surveys say a huge chunk of alerts never get investigated. A lot of them die right here, in the gap between two tired humans.
+
+ServiceNow has your tickets. Splunk has your logs. Neither one looks the incoming shift in the eye and says **"THIS one. Start here. It's on fire."**
+
+That's the job. That's `sochandoff`.
 
 ## What it does
 
-- **Ranks open cases by risk** — severity, status, how many shifts it has been
-  open, watch flags, and staleness all feed a single score. The scariest case
-  is line 1.
-- **Dropped-case guard** — the headline feature. Flags any open case that looks
-  likely to be lost: no owner, no recent update, open across several shifts, or
-  a high/critical case nobody has acknowledged. These print first.
-- **Clean terminal report** — color-coded, one screen, readable at a glance.
-- **Runs out of the box** — ships with sample data so you can see it work before
-  wiring in your own.
+<img src="https://media.giphy.com/media/3o7aCSPqXE5C6T8tBC/giphy.gif" width="260" align="right" alt="math lady confused meme" />
+
+- **Ranks open cases by risk** so the scariest thing is line 1, not buried under a cert-expiry ticket from last Tuesday.
+- **Dropped-case guard** — the star of the show. Flags any case about to fall through the crack: no owner, no recent update, open across too many shifts, or a critical nobody has acknowledged. These print **first and in red**, because subtlety is for people who aren't tired.
+- **Threat-intel enrichment** 🌐 — every IP, domain, and hash gets checked. "This IP is known phishing, seen in 312 reports" hits different than a raw number.
+- **Cross-shift memory** 🧠 — it *remembers*. "Hey, this exact attacker showed up two shifts ago." Your SOC finally has object permanence.
+- **Runs offline out of the box** with bundled sample data, so your demo never dies on stage.
 
 ## Install
 
-### One line (curl)
+### One line (the cool way)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ARUSHUGAL/sochandoff/main/install.sh | sh
 ```
 
-### With pip
+<img src="https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif" width="240" alt="hacker typing furiously meme" />
+
+*(you, pretending the curl command makes you a hacker. it's fine. we all do it.)*
+
+### With pip (the responsible way)
 
 ```bash
-pip install sochandoff        # once published to PyPI
-# or from source:
 pip install git+https://github.com/ARUSHUGAL/sochandoff.git
 ```
 
 ## Usage
 
 ```bash
-# Use the bundled sample data
-sochandoff
-
-# Point it at your own export
-sochandoff open_cases.json
-
-# No color (for logs or piping)
-sochandoff open_cases.json --no-color
+sochandoff                      # bundled sample data — try it right now
+sochandoff open_cases.json      # your own export
+sochandoff open_cases.json --no-color   # for logs / piping / goths
+sochandoff --no-intel --no-memory       # back to boring mode
 ```
 
 ## Input format
 
-A JSON list of case objects. Minimal example:
+A JSON list of cases. Export open cases from your SIEM/ticketing tool (Splunk, Sentinel, TheHive, Jira — they all do JSON) and map the fields:
 
 ```json
 [
@@ -76,9 +78,9 @@ A JSON list of case objects. Minimal example:
     "last_update": "2026-10-31T02:00:00Z",
     "assignee": "unassigned",
     "shifts_open": 4,
-    "notes": "3 users clicked. Resets pending.",
     "watch": true,
-    "acknowledged": false
+    "acknowledged": false,
+    "iocs": ["194.26.135.12", "finance-secure-login.com"]
   }
 ]
 ```
@@ -87,28 +89,32 @@ A JSON list of case objects. Minimal example:
 |-------|---------|
 | `severity` | critical, high, medium, low, info |
 | `status` | new, investigating, containment, monitoring, closed |
-| `shifts_open` | how many shift handoffs this case has survived |
-| `watch` | pin to the top as a watch item |
-| `acknowledged` | has the current shift acknowledged it |
+| `shifts_open` | how many handoffs this case has survived (the big ones are survivors) |
+| `watch` | pin it to the top |
+| `acknowledged` | has the current shift actually looked at it, or just *looked at* it |
+| `iocs` | IPs, domains, hashes — fuel for intel + memory |
 
-> Most SIEMs and ticketing systems (Splunk, Sentinel, TheHive, Jira) can export
-> open cases to JSON. Map their fields to the ones above and pipe it in. A
-> future version will add direct connectors.
+## How the "steroids" actually work
 
-## Notes on the sample data
+<img src="https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif" width="260" align="right" alt="galaxy brain meme" />
 
-The bundled sample uses fixed timestamps, so as time passes every sample case
-reads as "stale" and gets flagged. That is expected — it is frozen demo data.
-With live timestamps, only genuinely stale cases flag.
+- 🌐 **intel** is pluggable. Out of the box it uses a bundled local feed (so demos work on a plane). Point it at a real source — VirusTotal, AbuseIPDB, URLhaus — and it lights up for real.
+- 🧠 **memory** is a tiny local JSON store at `~/.sochandoff/memory.json`. Every IOC it reports gets logged, so future shifts recognize repeats. No database. No server. No cloud bill.
+
+## A note on the sample data
+
+The bundled sample uses fixed timestamps, so as the days roll by, every sample case eventually reads as "stale" and gets flagged. That's not a bug, that's frozen demo data getting older, same as the rest of us. With live timestamps only genuinely stale cases flag.
 
 ## Development
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e . pytest
-pytest
+pytest          # 22 tests, all green, we don't ship vibes
 ```
 
 ## License
 
-MIT. Fork it, use it, make your SOC's handoff suck less.
+MIT. Fork it, ship it, make your 6 AM handoff suck a little less.
+
+<img src="https://media.giphy.com/media/111ebonMs90YLu/giphy.gif" width="200" alt="mic drop" />

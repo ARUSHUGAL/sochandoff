@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="344" viewBox="0 0 760 344" font-family="SFMono-Regular,Consolas,Menlo,monospace" font-size="14"><rect width="760" height="344" rx="10" fill="#0d1117" stroke="#30363d"/><rect width="760" height="34" rx="10" fill="#161b22"/><rect y="24" width="760" height="10" fill="#161b22"/><circle cx="22" cy="17" r="6" fill="#ff5f56"/><circle cx="42" cy="17" r="6" fill="#ffbd2e"/><circle cx="62" cy="17" r="6" fill="#27c93f"/><text x="380.0" y="22" fill="#8b949e" font-size="12" text-anchor="middle">sochandoff — SOC shift handoff</text><g opacity="0"><text x="20" y="68" fill="#7ee787" font-weight="normal">$ sochandoff</text>
+      <text x="20" y="112" fill="#ffffff" font-weight="bold">  SOC SHIFT HANDOFF</text>
+      <text x="20" y="134" fill="#c9d1d9" font-weight="normal">  Open cases: 5    At-risk of being dropped: 5</text>
+      <text x="20" y="178" fill="#ff7b72" font-weight="bold">  ⚠  DROPPED-CASE GUARD — read these first</text>
+      <text x="20" y="200" fill="#ffffff" font-weight="bold">  ! [SOC-1042] Phishing: credential-harvest to finance</text>
+      <text x="20" y="222" fill="#e3b341" font-weight="normal">      why flagged: open 4 shifts; no owner; high + unack</text>
+      <text x="20" y="244" fill="#39c5cf" font-weight="normal">      🌐 intel: 194.26.135.12 — known phishing, 312 reports</text>
+      <text x="20" y="266" fill="#39c5cf" font-weight="normal">      🌐 intel: finance-secure-login.com — typosquat domain</text><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.450;0.525;1" dur="8.0s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 1 1;0.4 0 0.2 1" /></g><g opacity="0"><text x="20" y="68" fill="#7ee787" font-weight="normal">$ sochandoff   # next shift, 8 hours later</text>
+      <text x="20" y="112" fill="#ffffff" font-weight="bold">  SOC SHIFT HANDOFF</text>
+      <text x="20" y="134" fill="#c9d1d9" font-weight="normal">  Open cases: 5    At-risk of being dropped: 5</text>
+      <text x="20" y="178" fill="#ff7b72" font-weight="bold">  ⚠  DROPPED-CASE GUARD — read these first</text>
+      <text x="20" y="200" fill="#ffffff" font-weight="bold">  ! [SOC-1042] Phishing: credential-harvest to finance</text>
+      <text x="20" y="222" fill="#e3b341" font-weight="normal">      why flagged: open 5 shifts; no owner; high + unack</text>
+      <text x="20" y="244" fill="#d2a8ff" font-weight="normal">      🧠 memory: 194.26.135.12 seen in 1 prior shift</text>
+      <text x="20" y="266" fill="#39c5cf" font-weight="normal">      🌐 intel: 194.26.135.12 — known phishing, 312 reports</text><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.525;0.975;1" dur="8.0s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 1 1;0.4 0 0.2 1" /></g></svg>
