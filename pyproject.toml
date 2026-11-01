@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sochandoff"
+version = "0.1.0"
+description = "A SOC shift-handoff tool for the terminal — rank open cases and never drop one between shifts."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Arush Ugal" }]
+keywords = ["soc", "security", "incident-response", "handoff", "cli"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Environment :: Console",
+  "Topic :: Security",
+]
+
+[project.scripts]
+sochandoff = "sochandoff.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ARUSHUGAL/sochandoff"
+
+[tool.setuptools]
+packages = ["sochandoff"]
+
+[tool.setuptools.package-data]
+sochandoff = ["data/*.json"]

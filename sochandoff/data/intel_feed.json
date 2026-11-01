@@ -1,0 +1,32 @@
+{
+  "194.26.135.12": {
+    "malicious": true,
+    "score": 92,
+    "summary": "known phishing/credential-harvest infrastructure, seen in 312 reports",
+    "source": "bundled-feed"
+  },
+  "45.142.212.61": {
+    "malicious": true,
+    "score": 78,
+    "summary": "brute-force source, part of a known credential-stuffing ASN",
+    "source": "bundled-feed"
+  },
+  "finance-secure-login.com": {
+    "malicious": true,
+    "score": 88,
+    "summary": "typosquat phishing domain registered 6 days ago",
+    "source": "bundled-feed"
+  },
+  "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3": {
+    "malicious": true,
+    "score": 95,
+    "summary": "malware dropper, flagged by 48/70 engines",
+    "source": "bundled-feed"
+  },
+  "10.0.4.22": {
+    "malicious": false,
+    "score": 0,
+    "summary": "internal corporate address",
+    "source": "bundled-feed"
+  }
+}
